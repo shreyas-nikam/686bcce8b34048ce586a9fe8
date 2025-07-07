@@ -1,105 +1,97 @@
 
-import numpy as np
-from typing import Union
+import re
+from typing import TypeVar, Any
 
-def generate_multivariate_normal_samples(mean: np.ndarray, cov: np.ndarray, n_samples: int, n_dims: int) -> np.ndarray:
+# In a production environment, 'Symbol' would typically be imported from an external library
+# (e.g., `from symai import Symbol`). For this isolated code stub, we define a minimal
+# placeholder class that provides the expected interface (a 'value' attribute) to satisfy
+# the type hint's bound constraint and allow the code to run in a test environment
+# where the actual 'symai.Symbol' might not be available.
+class Symbol:
     """
-    Generates samples from a multivariate normal distribution with specified mean and covariance matrix.
+    A placeholder base class for Symbol objects, used primarily for type hinting.
+    In a real application, this would represent the `symai.Symbol` class.
+    It expects to hold a value that can be converted to a string.
+    """
+    def __init__(self, value: Any):
+        self._value = value
 
-    This function performs rigorous validation of input arguments for type, value, and shape.
-    It also checks the properties of the covariance matrix (symmetry, positive semi-definiteness,
-    and non-singularity) to ensure valid input for NumPy's multivariate normal distribution sampler.
+    @property
+    def value(self) -> Any:
+        """The underlying value of the Symbol, typically text content."""
+        return self._value
 
-    Args:
-        mean: A 1-dimensional NumPy array representing the mean vector of the
-              multivariate normal distribution. Its shape must be (n_dims,).
-        cov: A 2-dimensional NumPy array representing the covariance matrix of the
-             multivariate normal distribution. It must be square and its shape
-             must be (n_dims, n_dims). It must also be symmetric and positive definite.
-             Singular (rank-deficient) or non-positive semi-definite matrices will
-             raise a `numpy.linalg.LinAlgError`.
-        n_samples: The number of samples to generate. Must be a non-negative integer.
-        n_dims: The dimensionality of the samples. Must be a positive integer (>= 1).
+    # These dunder methods are included for completeness and consistent behavior
+    # with Symbol-like objects, although not strictly required by clean_symbol's logic.
+    def __str__(self) -> str:
+        return str(self._value)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(value={self._value!r})"
+
+
+# Define a type variable for generic Symbol-like objects.
+# This allows type checkers to ensure that the input and output types are consistent.
+# The `bound=Symbol` ensures that any type used for SymbolLike must be a subclass of our
+# placeholder Symbol (or the actual symai.Symbol in production).
+SymbolLike = TypeVar('SymbolLike', bound=Symbol)
+
+def clean_symbol(input_symbol: SymbolLike) -> SymbolLike:
+    """
+    Simulates text cleaning, such such as removing special characters or extra spaces,
+    from a Symbol object. This operation transforms the input text into a cleaner
+    format, resulting in a new Symbol instance.
+
+    The cleaning process applies the following steps to the Symbol's internal text value:
+    1.  Strips any leading and trailing whitespace characters.
+    2.  Replaces sequences of multiple whitespace characters (including spaces, newlines,
+        tabs, etc.) with a single space.
+    3.  Removes any characters that are not alphanumeric (letters, numbers, underscore)
+        or a single space. Punctuation and other symbols are removed.
+
+    Arguments:
+        input_symbol (SymbolLike): The Symbol object containing the text to be cleaned.
+                                   This object must expose its text content via a 'value'
+                                   attribute.
 
     Returns:
-        A NumPy array of shape (n_samples, n_dims) containing the generated samples.
-        If `n_samples` is 0, an empty array of shape (0, n_dims) with float64 dtype is returned.
+        SymbolLike: A new Symbol object of the same concrete type as the input_symbol,
+                    containing the cleaned text. The returned object is a distinct instance
+                    from the input_symbol, ensuring the original object remains unchanged.
 
     Raises:
-        TypeError: If `mean` or `cov` are not NumPy arrays, or if `n_samples` or `n_dims`
-                   are not integers.
-        ValueError: If `n_samples` is negative, `n_dims` is less than 1, or if the
-                    shapes of `mean` or `cov` are incorrect or inconsistent with `n_dims`.
-        numpy.linalg.LinAlgError: If the covariance matrix is not symmetric, not positive
-                                  semi-definite (e.g., has negative eigenvalues), or is singular
-                                  (e.g., zero matrix or rank-deficient).
-        RuntimeError: If an unexpected error occurs during sample generation by NumPy.
+        TypeError: If `input_symbol` is not a Symbol-like object (i.e., it does not
+                   have a 'value' attribute). This handles cases like `None`, plain
+                   strings, numbers, lists, or dictionaries passed directly instead of
+                   being wrapped in a Symbol object.
     """
-    # 1. Type Validation
-    if not isinstance(mean, np.ndarray) or not isinstance(cov, np.ndarray):
-        raise TypeError("Mean and covariance must be numpy arrays.")
-    if not isinstance(n_samples, int) or not isinstance(n_dims, int):
-        raise TypeError("n_samples and n_dims must be integers.")
+    # Error handling: Ensure the input is a Symbol-like object with a 'value' attribute.
+    if not hasattr(input_symbol, 'value'):
+        raise TypeError(
+            f"Input must be a Symbol-like object with a 'value' attribute, "
+            f"but received an object of type {type(input_symbol).__name__}."
+        )
 
-    # 2. Value Validation
-    if n_samples < 0:
-        raise ValueError("n_samples must be non-negative.")
-    if n_dims < 1:
-        raise ValueError("n_dims must be at least 1.")
+    # Extract the raw text value from the Symbol object.
+    # We explicitly convert it to a string to handle cases where the Symbol's
+    # value might be an integer, list, dictionary, or other non-string type
+    # that needs to be represented as text for cleaning.
+    original_text = str(input_symbol.value)
 
-    # 3. Shape Validation
-    if mean.ndim != 1 or mean.shape[0] != n_dims:
-        raise ValueError(f"Mean vector must be 1-dimensional and have shape ({n_dims},). Got shape {mean.shape}.")
-    if cov.ndim != 2 or cov.shape != (n_dims, n_dims):
-        raise ValueError(f"Covariance matrix must be 2-dimensional and have shape ({n_dims}, {n_dims}). Got shape {cov.shape}.")
+    # Step 1: Remove leading and trailing whitespace.
+    text_stripped = original_text.strip()
 
-    # 4. Covariance Matrix Properties Validation
-    # Check for symmetry with a reasonable tolerance for floating point numbers
-    if not np.allclose(cov, cov.T, atol=1e-9):
-        raise np.linalg.LinAlgError("Covariance matrix must be symmetric.")
-    
-    # Check for positive definiteness/semi-definiteness by examining eigenvalues.
-    # A symmetric matrix is positive semi-definite if all its eigenvalues are non-negative.
-    # It is positive definite if all its eigenvalues are strictly positive.
-    # We require it to be positive definite for sampling to avoid issues with singular matrices.
-    try:
-        # Use eigvalsh for symmetric matrices for numerical stability
-        eigenvalues = np.linalg.eigvalsh(cov)
+    # Step 2: Normalize internal whitespace. Replace any sequence of one or more
+    # whitespace characters (spaces, tabs, newlines) with a single space.
+    text_normalized_spaces = re.sub(r'\s+', ' ', text_stripped)
 
-        # Check if any eigenvalue is effectively negative (not positive semi-definite)
-        if np.any(eigenvalues < -1e-9): # Allow for very small negative values due to floating point precision
-            raise np.linalg.LinAlgError("Covariance matrix is not positive semi-definite (has negative eigenvalues).")
+    # Step 3: Remove non-alphanumeric and non-space characters.
+    # `\w` matches alphanumeric characters (letters, numbers, and underscore).
+    # `\s` matches any whitespace character (which is now guaranteed to be single spaces).
+    # `[^\w\s]` matches anything that is NOT a word character and NOT a whitespace character.
+    cleaned_text = re.sub(r'[^\w\s]', '', text_normalized_spaces)
 
-        # Check if the matrix is singular (i.e., not positive definite, smallest eigenvalue is effectively zero).
-        # This covers cases like [[0,0],[0,0]] or other rank-deficient matrices.
-        # np.random.multivariate_normal requires a non-singular covariance matrix.
-        if np.any(eigenvalues < 1e-9): # If any eigenvalue is effectively zero, it's singular
-            raise np.linalg.LinAlgError("Covariance matrix is singular (not positive definite).")
-
-    except np.linalg.LinAlgError as e:
-        # Catch LinAlgError from eigvalsh itself (e.g., if matrix is ill-conditioned or has NaNs/Infs)
-        raise np.linalg.LinAlgError(f"Error during covariance matrix eigenvalue decomposition: {e}")
-    except Exception as e:
-        # Catch any other unexpected errors during eigenvalue decomposition.
-        raise RuntimeError(f"An unexpected error occurred during covariance matrix validation: {e}")
-
-    # 5. Sample Generation
-    if n_samples == 0:
-        # Return an empty array of the correct shape and a consistent float dtype.
-        return np.empty((0, n_dims), dtype=np.float64)
-
-    try:
-        # Generate samples using NumPy's multivariate_normal function.
-        # The prior validation ensures `cov` is symmetric and positive definite.
-        samples = np.random.multivariate_normal(mean, cov, size=n_samples)
-        
-        # NumPy's multivariate_normal can return a 1D array if n_dims=1 and n_samples > 1.
-        # Ensure the output always has shape (n_samples, n_dims) for consistency.
-        if n_dims == 1 and samples.ndim == 1:
-            samples = samples.reshape(-1, 1)
-            
-        return samples
-    except Exception as e:
-        # This catch is a fallback for any unforeseen issues during the actual sampling,
-        # though robust pre-validation should prevent most common errors.
-        raise RuntimeError(f"An unexpected error occurred during sample generation: {e}")
+    # Return a new Symbol object initialized with the cleaned text.
+    # `input_symbol.__class__` ensures that the new object is of the same
+    # specific class (e.g., MockSymbol) as the input, preserving type.
+    return input_symbol.__class__(cleaned_text)
