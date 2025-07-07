@@ -1,143 +1,105 @@
 
-import pandas as pd
 import numpy as np
-import datetime
+from typing import Union
 
-def generate_synthetic_data(num_samples: int) -> pd.DataFrame:
+def generate_multivariate_normal_samples(mean: np.ndarray, cov: np.ndarray, n_samples: int, n_dims: int) -> np.ndarray:
     """
-    Generates a synthetic pandas DataFrame to simulate diverse data characteristics for demonstration purposes.
+    Generates samples from a multivariate normal distribution with specified mean and covariance matrix.
 
-    Arguments:
-        num_samples (int): The number of rows to generate in the DataFrame.
+    This function performs rigorous validation of input arguments for type, value, and shape.
+    It also checks the properties of the covariance matrix (symmetry, positive semi-definiteness,
+    and non-singularity) to ensure valid input for NumPy's multivariate normal distribution sampler.
+
+    Args:
+        mean: A 1-dimensional NumPy array representing the mean vector of the
+              multivariate normal distribution. Its shape must be (n_dims,).
+        cov: A 2-dimensional NumPy array representing the covariance matrix of the
+             multivariate normal distribution. It must be square and its shape
+             must be (n_dims, n_dims). It must also be symmetric and positive definite.
+             Singular (rank-deficient) or non-positive semi-definite matrices will
+             raise a `numpy.linalg.LinAlgError`.
+        n_samples: The number of samples to generate. Must be a non-negative integer.
+        n_dims: The dimensionality of the samples. Must be a positive integer (>= 1).
 
     Returns:
-        pandas.DataFrame: A DataFrame with 'numeric_value', 'categorical_variable', 'time_series_data',
-                          and 'text_description' columns.
+        A NumPy array of shape (n_samples, n_dims) containing the generated samples.
+        If `n_samples` is 0, an empty array of shape (0, n_dims) with float64 dtype is returned.
 
     Raises:
-        TypeError: If `num_samples` is not an integer.
-        ValueError: If `num_samples` is a negative integer.
+        TypeError: If `mean` or `cov` are not NumPy arrays, or if `n_samples` or `n_dims`
+                   are not integers.
+        ValueError: If `n_samples` is negative, `n_dims` is less than 1, or if the
+                    shapes of `mean` or `cov` are incorrect or inconsistent with `n_dims`.
+        numpy.linalg.LinAlgError: If the covariance matrix is not symmetric, not positive
+                                  semi-definite (e.g., has negative eigenvalues), or is singular
+                                  (e.g., zero matrix or rank-deficient).
+        RuntimeError: If an unexpected error occurs during sample generation by NumPy.
     """
-    # --- Input Validation ---
-    if not isinstance(num_samples, int):
-        raise TypeError("num_samples must be an integer.")
-    if num_samples < 0:
-        raise ValueError("num_samples cannot be negative.")
+    # 1. Type Validation
+    if not isinstance(mean, np.ndarray) or not isinstance(cov, np.ndarray):
+        raise TypeError("Mean and covariance must be numpy arrays.")
+    if not isinstance(n_samples, int) or not isinstance(n_dims, int):
+        raise TypeError("n_samples and n_dims must be integers.")
 
-    # --- Handle zero samples case explicitly ---
-    # Return an empty DataFrame with the correct column names to satisfy test cases
-    # regarding column presence and order for zero rows.
-    if num_samples == 0:
-        return pd.DataFrame(columns=['numeric_value', 'categorical_variable', 'time_series_data', 'text_description'])
+    # 2. Value Validation
+    if n_samples < 0:
+        raise ValueError("n_samples must be non-negative.")
+    if n_dims < 1:
+        raise ValueError("n_dims must be at least 1.")
 
-    # --- Data Generation ---
-    # 1. 'numeric_value': Random floats uniformly distributed between -100 and 100.
-    numeric_values = np.random.uniform(-100.0, 100.0, num_samples)
+    # 3. Shape Validation
+    if mean.ndim != 1 or mean.shape[0] != n_dims:
+        raise ValueError(f"Mean vector must be 1-dimensional and have shape ({n_dims},). Got shape {mean.shape}.")
+    if cov.ndim != 2 or cov.shape != (n_dims, n_dims):
+        raise ValueError(f"Covariance matrix must be 2-dimensional and have shape ({n_dims}, {n_dims}). Got shape {cov.shape}.")
 
-    # 2. 'categorical_variable': Random choices from a predefined set of categories.
-    categories = np.random.choice(['A', 'B', 'C'], size=num_samples)
+    # 4. Covariance Matrix Properties Validation
+    # Check for symmetry with a reasonable tolerance for floating point numbers
+    if not np.allclose(cov, cov.T, atol=1e-9):
+        raise np.linalg.LinAlgError("Covariance matrix must be symmetric.")
+    
+    # Check for positive definiteness/semi-definiteness by examining eigenvalues.
+    # A symmetric matrix is positive semi-definite if all its eigenvalues are non-negative.
+    # It is positive definite if all its eigenvalues are strictly positive.
+    # We require it to be positive definite for sampling to avoid issues with singular matrices.
+    try:
+        # Use eigvalsh for symmetric matrices for numerical stability
+        eigenvalues = np.linalg.eigvalsh(cov)
 
-    # 3. 'time_series_data': Random datetime objects within a range around the current date.
-    #    Generate timestamps within +/- 3 years of the current date.
-    base_timestamp = pd.Timestamp.now()
-    # Random days between -3 years and +3 years (inclusive of 3 years)
-    random_days = np.random.randint(-3 * 365, 3 * 365 + 1, num_samples)
-    time_deltas = pd.to_timedelta(random_days, unit='D')
-    time_series_data = base_timestamp + time_deltas
+        # Check if any eigenvalue is effectively negative (not positive semi-definite)
+        if np.any(eigenvalues < -1e-9): # Allow for very small negative values due to floating point precision
+            raise np.linalg.LinAlgError("Covariance matrix is not positive semi-definite (has negative eigenvalues).")
 
-    # 4. 'text_description': Synthetic text descriptions.
-    #    Combine a random phrase from a pool with a sequential index.
-    text_phrase_pool = [
-        "Data record {idx}.",
-        "Sample {idx} observation.",
-        "Entry {idx} details.",
-        "Record {idx} information.",
-        "Item {idx} description."
-    ]
-    text_descriptions = [
-        np.random.choice(text_phrase_pool).format(idx=i + 1)
-        for i in range(num_samples)
-    ]
+        # Check if the matrix is singular (i.e., not positive definite, smallest eigenvalue is effectively zero).
+        # This covers cases like [[0,0],[0,0]] or other rank-deficient matrices.
+        # np.random.multivariate_normal requires a non-singular covariance matrix.
+        if np.any(eigenvalues < 1e-9): # If any eigenvalue is effectively zero, it's singular
+            raise np.linalg.LinAlgError("Covariance matrix is singular (not positive definite).")
 
-    # --- DataFrame Construction ---
-    data = {
-        'numeric_value': numeric_values,
-        'categorical_variable': categories,
-        'time_series_data': time_series_data,
-        'text_description': text_descriptions
-    }
-    df = pd.DataFrame(data)
+    except np.linalg.LinAlgError as e:
+        # Catch LinAlgError from eigvalsh itself (e.g., if matrix is ill-conditioned or has NaNs/Infs)
+        raise np.linalg.LinAlgError(f"Error during covariance matrix eigenvalue decomposition: {e}")
+    except Exception as e:
+        # Catch any other unexpected errors during eigenvalue decomposition.
+        raise RuntimeError(f"An unexpected error occurred during covariance matrix validation: {e}")
 
-    return df
+    # 5. Sample Generation
+    if n_samples == 0:
+        # Return an empty array of the correct shape and a consistent float dtype.
+        return np.empty((0, n_dims), dtype=np.float64)
 
-
-import pandas as pd
-import numpy as np
-import datetime
-
-def generate_synthetic_data(num_samples: int) -> pd.DataFrame:
-    """
-    Generates a synthetic pandas DataFrame to simulate diverse data characteristics for demonstration purposes.
-
-    Arguments:
-        num_samples (int): The number of rows to generate in the DataFrame.
-
-    Returns:
-        pandas.DataFrame: A DataFrame with 'numeric_value', 'categorical_variable', 'time_series_data',
-                          and 'text_description' columns.
-
-    Raises:
-        TypeError: If `num_samples` is not an integer.
-        ValueError: If `num_samples` is a negative integer.
-    """
-    # --- Input Validation ---
-    if not isinstance(num_samples, int):
-        raise TypeError("num_samples must be an integer.")
-    if num_samples < 0:
-        raise ValueError("num_samples cannot be negative.")
-
-    # --- Handle zero samples case explicitly ---
-    # Return an empty DataFrame with the correct column names to satisfy test cases
-    # regarding column presence and order for zero rows.
-    if num_samples == 0:
-        return pd.DataFrame(columns=['numeric_value', 'categorical_variable', 'time_series_data', 'text_description'])
-
-    # --- Data Generation ---
-    # 1. 'numeric_value': Random floats uniformly distributed between -100 and 100.
-    numeric_values = np.random.uniform(-100.0, 100.0, num_samples)
-
-    # 2. 'categorical_variable': Random choices from a predefined set of categories.
-    categories = np.random.choice(['A', 'B', 'C'], size=num_samples)
-
-    # 3. 'time_series_data': Random datetime objects within a range around the current date.
-    #    Generate timestamps within +/- 3 years of the current date.
-    base_timestamp = pd.Timestamp.now()
-    # Random days between -3 years and +3 years (inclusive of 3 years)
-    random_days = np.random.randint(-3 * 365, 3 * 365 + 1, num_samples)
-    time_deltas = pd.to_timedelta(random_days, unit='D')
-    time_series_data = base_timestamp + time_deltas
-
-    # 4. 'text_description': Synthetic text descriptions.
-    #    Combine a random phrase from a pool with a sequential index.
-    text_phrase_pool = [
-        "Data record {idx}.",
-        "Sample {idx} observation.",
-        "Entry {idx} details.",
-        "Record {idx} information.",
-        "Item {idx} description."
-    ]
-    text_descriptions = [
-        np.random.choice(text_phrase_pool).format(idx=i + 1)
-        for i in range(num_samples)
-    ]
-
-    # --- DataFrame Construction ---
-    data = {
-        'numeric_value': numeric_values,
-        'categorical_variable': categories,
-        'time_series_data': time_series_data,
-        'text_description': text_descriptions
-    }
-    df = pd.DataFrame(data)
-
-    return df
+    try:
+        # Generate samples using NumPy's multivariate_normal function.
+        # The prior validation ensures `cov` is symmetric and positive definite.
+        samples = np.random.multivariate_normal(mean, cov, size=n_samples)
+        
+        # NumPy's multivariate_normal can return a 1D array if n_dims=1 and n_samples > 1.
+        # Ensure the output always has shape (n_samples, n_dims) for consistency.
+        if n_dims == 1 and samples.ndim == 1:
+            samples = samples.reshape(-1, 1)
+            
+        return samples
+    except Exception as e:
+        # This catch is a fallback for any unforeseen issues during the actual sampling,
+        # though robust pre-validation should prevent most common errors.
+        raise RuntimeError(f"An unexpected error occurred during sample generation: {e}")
