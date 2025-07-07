@@ -1,149 +1,143 @@
 
 import pandas as pd
 import numpy as np
-from typing import Dict, Any, Union
+import datetime
 
-def generate_synthetic_data(
-    num_records: int,
-    include_text: bool,
-    include_numeric: bool,
-    include_categorical: bool
-) -> pd.DataFrame:
+def generate_synthetic_data(num_samples: int) -> pd.DataFrame:
     """
-    Generates a synthetic dataset for simulation purposes, containing a mix of text,
-    numerical, and categorical data points.
+    Generates a synthetic pandas DataFrame to simulate diverse data characteristics for demonstration purposes.
 
-    Args:
-        num_records (int): The number of records/rows to generate in the dataset.
-        include_text (bool): Whether to include simulated text data.
-        include_numeric (bool): Whether to include simulated numerical data.
-        include_categorical (bool): Whether to include simulated categorical data.
+    Arguments:
+        num_samples (int): The number of rows to generate in the DataFrame.
 
     Returns:
-        pd.DataFrame: A pandas DataFrame containing the synthetic data.
+        pandas.DataFrame: A DataFrame with 'numeric_value', 'categorical_variable', 'time_series_data',
+                          and 'text_description' columns.
 
     Raises:
-        TypeError: If `num_records` is not an integer, or if `include_text`,
-                   `include_numeric`, or `include_categorical` are not booleans.
-        ValueError: If `num_records` is negative.
+        TypeError: If `num_samples` is not an integer.
+        ValueError: If `num_samples` is a negative integer.
     """
     # --- Input Validation ---
-    if not isinstance(num_records, int):
-        raise TypeError("num_records must be an integer.")
-    if num_records < 0:
-        raise ValueError("num_records cannot be negative.")
+    if not isinstance(num_samples, int):
+        raise TypeError("num_samples must be an integer.")
+    if num_samples < 0:
+        raise ValueError("num_samples cannot be negative.")
 
-    if not isinstance(include_text, bool):
-        raise TypeError("include_text must be a boolean.")
-    if not isinstance(include_numeric, bool):
-        raise TypeError("include_numeric must be a boolean.")
-    if not isinstance(include_categorical, bool):
-        raise TypeError("include_categorical must be a boolean.")
+    # --- Handle zero samples case explicitly ---
+    # Return an empty DataFrame with the correct column names to satisfy test cases
+    # regarding column presence and order for zero rows.
+    if num_samples == 0:
+        return pd.DataFrame(columns=['numeric_value', 'categorical_variable', 'time_series_data', 'text_description'])
 
-    # --- Data Generation Logic ---
-    data: Dict[str, np.ndarray] = {}
+    # --- Data Generation ---
+    # 1. 'numeric_value': Random floats uniformly distributed between -100 and 100.
+    numeric_values = np.random.uniform(-100.0, 100.0, num_samples)
 
-    if include_text:
-        # Generate varied text data using a simple pattern and index
-        # This ensures unique strings for each record and avoids external dependencies.
-        text_data = np.array([f"synthetic_text_{i:05d}" for i in range(num_records)], dtype=str)
-        data['text_data'] = text_data
+    # 2. 'categorical_variable': Random choices from a predefined set of categories.
+    categories = np.random.choice(['A', 'B', 'C'], size=num_samples)
 
-    if include_numeric:
-        # Generate random float data between 0.0 and 100.0
-        numeric_data = np.random.rand(num_records) * 100.0
-        data['numeric_data'] = numeric_data
+    # 3. 'time_series_data': Random datetime objects within a range around the current date.
+    #    Generate timestamps within +/- 3 years of the current date.
+    base_timestamp = pd.Timestamp.now()
+    # Random days between -3 years and +3 years (inclusive of 3 years)
+    random_days = np.random.randint(-3 * 365, 3 * 365 + 1, num_samples)
+    time_deltas = pd.to_timedelta(random_days, unit='D')
+    time_series_data = base_timestamp + time_deltas
 
-    if include_categorical:
-        # Generate categorical data by randomly selecting from a predefined set
-        categories = ['CategoryA', 'CategoryB', 'CategoryC', 'CategoryD', 'CategoryE']
-        categorical_data = np.random.choice(categories, size=num_records)
-        data['categorical_data'] = categorical_data
+    # 4. 'text_description': Synthetic text descriptions.
+    #    Combine a random phrase from a pool with a sequential index.
+    text_phrase_pool = [
+        "Data record {idx}.",
+        "Sample {idx} observation.",
+        "Entry {idx} details.",
+        "Record {idx} information.",
+        "Item {idx} description."
+    ]
+    text_descriptions = [
+        np.random.choice(text_phrase_pool).format(idx=i + 1)
+        for i in range(num_samples)
+    ]
 
     # --- DataFrame Construction ---
-    if num_records == 0:
-        # If 0 records are requested, return an empty DataFrame (0 rows, 0 columns)
-        return pd.DataFrame()
-    elif not data:
-        # If no data types are requested but num_records > 0, return a DataFrame
-        # with num_records rows and 0 columns (i.e., an index only).
-        return pd.DataFrame(index=range(num_records))
-    else:
-        # Construct DataFrame from the generated data dictionary
-        return pd.DataFrame(data)
+    data = {
+        'numeric_value': numeric_values,
+        'categorical_variable': categories,
+        'time_series_data': time_series_data,
+        'text_description': text_descriptions
+    }
+    df = pd.DataFrame(data)
 
+    return df
 
 
 import pandas as pd
 import numpy as np
-from typing import Dict, Any, Union
+import datetime
 
-def generate_synthetic_data(
-    num_records: int,
-    include_text: bool,
-    include_numeric: bool,
-    include_categorical: bool
-) -> pd.DataFrame:
+def generate_synthetic_data(num_samples: int) -> pd.DataFrame:
     """
-    Generates a synthetic dataset for simulation purposes, containing a mix of text,
-    numerical, and categorical data points.
+    Generates a synthetic pandas DataFrame to simulate diverse data characteristics for demonstration purposes.
 
-    Args:
-        num_records (int): The number of records/rows to generate in the dataset.
-        include_text (bool): Whether to include simulated text data.
-        include_numeric (bool): Whether to include simulated numerical data.
-        include_categorical (bool): Whether to include simulated categorical data.
+    Arguments:
+        num_samples (int): The number of rows to generate in the DataFrame.
 
     Returns:
-        pd.DataFrame: A pandas DataFrame containing the synthetic data.
+        pandas.DataFrame: A DataFrame with 'numeric_value', 'categorical_variable', 'time_series_data',
+                          and 'text_description' columns.
 
     Raises:
-        TypeError: If `num_records` is not an integer, or if `include_text`,
-                   `include_numeric`, or `include_categorical` are not booleans.
-        ValueError: If `num_records` is negative.
+        TypeError: If `num_samples` is not an integer.
+        ValueError: If `num_samples` is a negative integer.
     """
     # --- Input Validation ---
-    if not isinstance(num_records, int):
-        raise TypeError("num_records must be an integer.")
-    if num_records < 0:
-        raise ValueError("num_records cannot be negative.")
+    if not isinstance(num_samples, int):
+        raise TypeError("num_samples must be an integer.")
+    if num_samples < 0:
+        raise ValueError("num_samples cannot be negative.")
 
-    if not isinstance(include_text, bool):
-        raise TypeError("include_text must be a boolean.")
-    if not isinstance(include_numeric, bool):
-        raise TypeError("include_numeric must be a boolean.")
-    if not isinstance(include_categorical, bool):
-        raise TypeError("include_categorical must be a boolean.")
+    # --- Handle zero samples case explicitly ---
+    # Return an empty DataFrame with the correct column names to satisfy test cases
+    # regarding column presence and order for zero rows.
+    if num_samples == 0:
+        return pd.DataFrame(columns=['numeric_value', 'categorical_variable', 'time_series_data', 'text_description'])
 
-    # --- Data Generation Logic ---
-    data: Dict[str, np.ndarray] = {}
+    # --- Data Generation ---
+    # 1. 'numeric_value': Random floats uniformly distributed between -100 and 100.
+    numeric_values = np.random.uniform(-100.0, 100.0, num_samples)
 
-    if include_text:
-        # Generate varied text data using a simple pattern and index
-        # This ensures unique strings for each record and avoids external dependencies.
-        text_data = np.array([f"synthetic_text_{i:05d}" for i in range(num_records)], dtype=str)
-        data['text_data'] = text_data
+    # 2. 'categorical_variable': Random choices from a predefined set of categories.
+    categories = np.random.choice(['A', 'B', 'C'], size=num_samples)
 
-    if include_numeric:
-        # Generate random float data between 0.0 and 100.0
-        numeric_data = np.random.rand(num_records) * 100.0
-        data['numeric_data'] = numeric_data
+    # 3. 'time_series_data': Random datetime objects within a range around the current date.
+    #    Generate timestamps within +/- 3 years of the current date.
+    base_timestamp = pd.Timestamp.now()
+    # Random days between -3 years and +3 years (inclusive of 3 years)
+    random_days = np.random.randint(-3 * 365, 3 * 365 + 1, num_samples)
+    time_deltas = pd.to_timedelta(random_days, unit='D')
+    time_series_data = base_timestamp + time_deltas
 
-    if include_categorical:
-        # Generate categorical data by randomly selecting from a predefined set
-        categories = ['CategoryA', 'CategoryB', 'CategoryC', 'CategoryD', 'CategoryE']
-        categorical_data = np.random.choice(categories, size=num_records)
-        data['categorical_data'] = categorical_data
+    # 4. 'text_description': Synthetic text descriptions.
+    #    Combine a random phrase from a pool with a sequential index.
+    text_phrase_pool = [
+        "Data record {idx}.",
+        "Sample {idx} observation.",
+        "Entry {idx} details.",
+        "Record {idx} information.",
+        "Item {idx} description."
+    ]
+    text_descriptions = [
+        np.random.choice(text_phrase_pool).format(idx=i + 1)
+        for i in range(num_samples)
+    ]
 
     # --- DataFrame Construction ---
-    if num_records == 0:
-        # If 0 records are requested, return an empty DataFrame (0 rows, 0 columns)
-        return pd.DataFrame()
-    elif not data:
-        # If no data types are requested but num_records > 0, return a DataFrame
-        # with num_records rows and 0 columns (i.e., an index only).
-        return pd.DataFrame(index=range(num_records))
-    else:
-        # Construct DataFrame from the generated data dictionary
-        return pd.DataFrame(data)
+    data = {
+        'numeric_value': numeric_values,
+        'categorical_variable': categories,
+        'time_series_data': time_series_data,
+        'text_description': text_descriptions
+    }
+    df = pd.DataFrame(data)
 
+    return df
