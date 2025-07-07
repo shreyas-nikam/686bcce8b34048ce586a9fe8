@@ -1,128 +1,116 @@
 import pytest
-import re
+from definition_cc53a0709a57434c8fd1f04040087497 import create_symai_symbol
 
-# Placeholder for your_module import
-# This block should be kept as is.
-from definition_079a697c8d3f4f90a22fe5581b6df2c2 import clean_symbol
-
-# --- Mock Symbol class for testing ---
-# This mock is necessary because the `clean_symbol` function expects a `Symbol` object,
-# which is part of the `symai` library not available in this testing environment.
-# It simulates the basic behavior of a Symbol object having a 'value' attribute.
-class MockSymbol:
-    def __init__(self, value):
-        # In a real symai.Symbol, it might handle non-string values differently.
-        # For this cleaning function's context, we assume the internal value
-        # should eventually be treatable as a string for cleaning.
-        self._value = str(value)
+# Mock the symai.Symbol class for testing purposes.
+# This mock is essential because `symai` might not be installed in the test environment,
+# and it defines the expected interface (`.value` attribute) and behavior (`__eq__`).
+# In a real test setup where `symai` is installed, you would import `symai.Symbol` directly
+# and the function `create_symai_symbol` would return an instance of that actual class.
+class MockSymaiSymbol:
+    def __init__(self, data):
+        # Use a non-public attribute name to mimic the internal storage of the wrapped data.
+        # symai.Symbol instances typically expose this data via a `.value` property.
+        self._value = data 
 
     @property
     def value(self):
+        # This property mimics how symai.Symbol allows access to its wrapped data.
         return self._value
 
-    @value.setter
-    def value(self, new_value):
-        self._value = str(new_value) # Ensure it's always string internally
-
     def __eq__(self, other):
-        if isinstance(other, MockSymbol):
+        # Defines equality for MockSymaiSymbol instances.
+        # This allows direct comparison like `symbol_obj == expected_symbol_obj` in tests.
+        if isinstance(other, MockSymaiSymbol):
             return self.value == other.value
-        return NotImplemented
+        # If the actual symai.Symbol supports comparison with raw data directly,
+        # this could be extended: `return self.value == other`
+        return NotImplemented # Delegate to other's __eq__ or fall back to default comparison
 
     def __repr__(self):
-        return f"MockSymbol(value='{self.value}')"
+        return f"MockSymaiSymbol(value={self.value!r})"
 
-    def __str__(self):
-        return self.value
-# --- End Mock Symbol class ---
+# Define a dummy custom class for testing an unsupported object type.
+# This helps ensure that arbitrary complex objects are not silently accepted or cause errors.
+class MyCustomClass:
+    def __init__(self, value="custom_data"):
+        self.value = value
+    
+    def __repr__(self):
+        return f"MyCustomClass(value={self.value!r})"
 
-# Helper function to simulate the cleaning process that `clean_symbol` is expected to perform.
-# This logic is based on the docstring "removing special characters or extra spaces".
-# Assumed cleaning: strip leading/trailing whitespace, normalize internal spaces,
-# and remove common non-alphanumeric, non-whitespace characters (punctuation/symbols).
-def _simulate_cleaning_logic(text):
-    # Ensure the input is treated as a string, similar to MockSymbol's internal handling
-    if not isinstance(text, str):
-        text = str(text)
+@pytest.mark.parametrize("input_data, expected", [
+    # --- Valid Text (string) Inputs ---
+    ("Hello World", MockSymaiSymbol("Hello World")),
+    ("", MockSymaiSymbol("")), # Empty string
+    ("   Text with leading and trailing spaces   ", MockSymaiSymbol("   Text with leading and trailing spaces   ")),
+    ("Multi-line\nText\tWithTabs", MockSymaiSymbol("Multi-line\nText\tWithTabs")),
+    ("!@#$%^&*()_+", MockSymaiSymbol("!@#$%^&*()_+")), # String with special characters
 
-    # 1. Remove leading/trailing whitespace
-    cleaned_text = text.strip()
-    # 2. Replace multiple internal spaces, newlines, tabs with a single space
-    cleaned_text = re.sub(r'\s+', ' ', cleaned_text)
-    # 3. Remove non-alphanumeric, non-whitespace characters.
-    # This regex keeps letters (including Unicode), numbers, underscores, and single spaces.
-    cleaned_text = re.sub(r'[^\w\s]', '', cleaned_text)
-    return cleaned_text
+    # --- Valid Numeric Inputs (int, float) ---
+    (123, MockSymaiSymbol(123)), # Positive integer
+    (0, MockSymaiSymbol(0)),     # Zero integer
+    (-456, MockSymaiSymbol(-456)), # Negative integer
+    (3.14159, MockSymaiSymbol(3.14159)), # Positive float
+    (0.0, MockSymaiSymbol(0.0)),         # Zero float
+    (-2.718, MockSymaiSymbol(-2.718)),   # Negative float
+    (float('inf'), MockSymaiSymbol(float('inf'))), # Infinity
+    (float('-inf'), MockSymaiSymbol(float('-inf'))), # Negative Infinity
+    (float('nan'), MockSymaiSymbol(float('nan'))), # NaN (Note: NaN == NaN is false, but MockSymaiSymbol should wrap correctly)
 
+    # --- Valid List Inputs ---
+    ([1, 2, 3], MockSymaiSymbol([1, 2, 3])), # List of integers
+    (["apple", "banana", "cherry"], MockSymaiSymbol(["apple", "banana", "cherry"])), # List of strings
+    ([1, "text", True, 3.14, None], MockSymaiSymbol([1, "text", True, 3.14, None])), # Mixed-type list
+    ([], MockSymaiSymbol([])), # Empty list
+    ([[1, 2], ["a", "b"], [True, False]], MockSymaiSymbol([[1, 2], ["a", "b"], [True, False]])), # Nested list
 
-@pytest.mark.parametrize("input_data_for_symbol_or_error, expected_exception", [
-    # --- Valid cases for `clean_symbol`: Input is a MockSymbol instance ---
-    # For these cases, `input_data_for_symbol_or_error` will be wrapped in a MockSymbol object.
-    # The `_simulate_cleaning_logic` will then be applied to its `.value` for the expected result.
+    # --- Other Commonly Supported Basic Python Types ---
+    (True, MockSymaiSymbol(True)), # Boolean True
+    (False, MockSymaiSymbol(False)), # Boolean False
+    ({"key1": "value1", "key2": 123}, MockSymaiSymbol({"key1": "value1", "key2": 123})), # Dictionary
+    ({}, MockSymaiSymbol({})), # Empty dictionary
+    (None, MockSymaiSymbol(None)), # None type
+    ((1, 2, "three"), MockSymaiSymbol((1, 2, "three"))), # Tuple
+    ({1, 2, 3}, MockSymaiSymbol({1, 2, 3})), # Set (note: set equality is order-independent)
+    (frozenset({1, 2}), MockSymaiSymbol(frozenset({1, 2}))), # Frozenset
 
-    # Standard text cleaning: spaces and some special characters
-    ("  Hello,   World!  ", None),
-    ("!@#$Text With Special Chars!@#$", None),
-    ("  leading and trailing spaces  ", None),
-    ("Multiple   internal   spaces", None),
-    (" Line1\nLine2 \t ", None), # Newlines and tabs
-    ("This is a Test sentence. With. Some! Punctuation?", None),
-
-    # Edge cases for string content within a Symbol
-    ("", None), # Empty string
-    ("   ", None), # Only spaces
-    ("Justlettersandnumbers", None), # No cleaning needed (no extra spaces, no special chars)
-    ("Unicode Símbøls äüö", None), # Assumes non-ASCII letters are preserved by \w
-    ("123-ABC DEF_GHI", None), # Numbers and underscore are kept, hyphen removed
-    ("Text with numbers 123 and symbols &*^", None), # Symbols &*^ removed
-    ("email@example.com", None), # Strips out @ and .
-    ("!@#$", None), # Only special characters, should result in empty string
-
-    # Input values for MockSymbol that are not initially strings, but become strings internally.
-    # The cleaning logic will then apply to their string representation.
-    (12345, None), # MockSymbol(12345) -> value='12345', then cleaned to '12345'
-    ([1, 2, 3], None), # MockSymbol([1, 2, 3]) -> value='[1, 2, 3]', then cleaned to '1 2 3'
-    ({"key": "value", "num": 123}, None), # MockSymbol({'key': 'value', 'num': 123}) -> value="{'key': 'value', 'num': 123}" cleaned to 'key value num 123'
-    (None, TypeError), # Directly passing None should cause TypeError, not cleaned to "None"
-
-    # --- Invalid cases for `clean_symbol`: Input is NOT a Symbol instance ---
-    # These `input_data_for_symbol_or_error` values will be passed directly to `clean_symbol`.
-    # The function is expected to enforce that `input_symbol` must be a Symbol object.
-    (123, TypeError),
-    (123.45, TypeError),
-    (True, TypeError),
-    ([], TypeError), # Passing an empty list directly
-    ({}, TypeError), # Passing an empty dict directly
-    ("A plain string (not a Symbol)", TypeError), # Crucial test: function expects a Symbol object, not a bare string.
+    # --- Invalid / Unsupported Types (Expecting Exceptions) ---
+    # The docstring explicitly lists "string, int, float, list" as examples.
+    # Complex, non-serializable, or executable objects are typically not wrapped directly
+    # and should result in a TypeError or ValueError.
+    (object(), TypeError), # A generic instance of `object`
+    (type, TypeError), # A type object (e.g., `int`, `str`, `list`, `dict`)
+    (lambda x: x, TypeError), # A lambda function
+    (create_symai_symbol, TypeError), # A reference to the function itself
+    (pytest, TypeError), # A module object (e.g., `pytest`, `os`, `sys`)
+    (MyCustomClass(), TypeError), # An instance of a custom class
 ])
-def test_clean_symbol(input_data_for_symbol_or_error, expected_exception):
-    if expected_exception:
-        # If an exception is expected (e.g., TypeError for invalid input type),
-        # we pass the raw input directly to `clean_symbol`.
-        input_to_function = input_data_for_symbol_or_error
-        with pytest.raises(expected_exception):
-            clean_symbol(input_to_function)
-    else:
-        # For valid cases, the `input_symbol` argument to `clean_symbol`
-        # must be an instance of a `Symbol` (MockSymbol in this test).
-        input_symbol_obj = MockSymbol(input_data_for_symbol_or_error)
+def test_create_symai_symbol(input_data, expected):
+    """
+    Test cases for `create_symai_symbol` function.
+    It covers various valid data types (text, numbers, lists, etc.)
+    and handles invalid data types by expecting specific exceptions.
+    """
+    try:
+        result_symbol = create_symai_symbol(input_data)
         
-        # Calculate the expected cleaned value based on our simulated logic.
-        expected_cleaned_value = _simulate_cleaning_logic(input_data_for_symbol_or_error)
+        # Assert that the function returned an instance of our MockSymaiSymbol.
+        # In a real environment with `symai` installed, this would be
+        # `assert isinstance(result_symbol, symai.Symbol)`.
+        assert isinstance(result_symbol, MockSymaiSymbol)
+        
+        # Assert that the MockSymaiSymbol's wrapped value matches the expected value.
+        # This leverages the __eq__ method of MockSymaiSymbol for direct comparison.
+        # Explicitly checking `.value` also ensures the correct data is encapsulated.
+        assert result_symbol == expected
+        assert result_symbol.value == expected.value
+        
+        # Special check for NaN: float('nan') == float('nan') is False, so we check using math.isnan
+        if isinstance(input_data, float) and input_data != input_data: # Checks for NaN
+            import math
+            assert math.isnan(result_symbol.value)
+            assert math.isnan(expected.value) # Expected must also be NaN
 
-        # Call the function under test
-        result_symbol = clean_symbol(input_symbol_obj)
-
-        # Assertions for valid cases:
-        # 1. The returned object is a Symbol (MockSymbol) instance.
-        assert isinstance(result_symbol, MockSymbol), \
-            f"Expected clean_symbol to return a MockSymbol object, but got {type(result_symbol)}"
-        
-        # 2. The 'value' attribute of the returned Symbol matches the expected cleaned value.
-        assert result_symbol.value == expected_cleaned_value, \
-            f"For input '{input_data_for_symbol_or_error}', expected cleaned value '{expected_cleaned_value}', " \
-            f"but got '{result_symbol.value}'"
-        
-        # 3. As per docstring ("resulting in a new Symbol."), ensure a new object is returned, not the input one.
-        assert result_symbol is not input_symbol_obj, \
-            "Expected clean_symbol to return a new Symbol object, but it returned the same input object."
+    except Exception as e:
+        # If an exception is expected, assert that the raised exception is of the expected type.
+        assert isinstance(e, expected)
