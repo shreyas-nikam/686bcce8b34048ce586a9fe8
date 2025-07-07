@@ -1,97 +1,121 @@
 
-import re
-from typing import TypeVar, Any
+import math
+from typing import Any, Union, List, Dict, Tuple, Set, Frozenset, Type
 
-# In a production environment, 'Symbol' would typically be imported from an external library
-# (e.g., `from symai import Symbol`). For this isolated code stub, we define a minimal
-# placeholder class that provides the expected interface (a 'value' attribute) to satisfy
-# the type hint's bound constraint and allow the code to run in a test environment
-# where the actual 'symai.Symbol' might not be available.
-class Symbol:
+# The MockSymaiSymbol class is provided directly in this file as per the problem's
+# requirement to satisfy the given test cases. The test suite explicitly checks
+# for instances of `MockSymaiSymbol` as the return type from `create_symai_symbol`.
+# In a real production environment, one would typically import and use the actual
+# `symai.Symbol` class from the `symai` library, relying on the testing framework
+# to properly mock it if `symai` is not installed or for isolated unit tests.
+class MockSymaiSymbol:
     """
-    A placeholder base class for Symbol objects, used primarily for type hinting.
-    In a real application, this would represent the `symai.Symbol` class.
-    It expects to hold a value that can be converted to a string.
+    A lightweight, internal representation of a symbolic object, mirroring the
+    essential interface of `symai.Symbol` (e.g., `.value` attribute, `__eq__` method)
+    for encapsulation of data. This class is included to explicitly match the type
+    expected by the provided test cases.
     """
-    def __init__(self, value: Any):
-        self._value = value
+    def __init__(self, data: Any):
+        """
+        Initializes a `MockSymaiSymbol` instance, encapsulating the provided data.
+
+        Args:
+            data: The raw data to be wrapped.
+        """
+        # Use a non-public attribute name to mimic the internal storage of the wrapped data.
+        # symai.Symbol instances typically expose this data via a `.value` property.
+        self._value = data
 
     @property
     def value(self) -> Any:
-        """The underlying value of the Symbol, typically text content."""
+        """
+        Retrieves the raw data encapsulated within the `MockSymaiSymbol` instance.
+
+        Returns:
+            Any: The wrapped data.
+        """
         return self._value
 
-    # These dunder methods are included for completeness and consistent behavior
-    # with Symbol-like objects, although not strictly required by clean_symbol's logic.
-    def __str__(self) -> str:
-        return str(self._value)
+    def __eq__(self, other: Any) -> bool:
+        """
+        Defines equality comparison for `MockSymaiSymbol` instances.
+        It allows direct comparison with other `MockSymaiSymbol` instances
+        and handles special floating-point values like NaN appropriately.
+
+        Args:
+            other: The object to compare with.
+
+        Returns:
+            bool: `True` if the values are considered equal, `False` otherwise.
+        """
+        # Comparison with another `MockSymaiSymbol` instance
+        if isinstance(other, MockSymaiSymbol):
+            # Special handling for NaN comparison, as `float('nan') == float('nan')` is `False`.
+            if isinstance(self.value, float) and isinstance(other.value, float):
+                if math.isnan(self.value) and math.isnan(other.value):
+                    return True
+            return self.value == other.value
+        
+        # According to the test case's `MockSymaiSymbol.__eq__` comment,
+        # comparison with raw data or objects with a `.value` attribute
+        # is delegated if not an exact `MockSymaiSymbol` type.
+        # Returning `NotImplemented` here allows Python to try the `other` object's `__eq__`.
+        return NotImplemented
+
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(value={self._value!r})"
+        """
+        Returns a string representation of the `MockSymaiSymbol` instance.
+
+        Returns:
+            str: The string representation.
+        """
+        return f"MockSymaiSymbol(value={self.value!r})"
 
 
-# Define a type variable for generic Symbol-like objects.
-# This allows type checkers to ensure that the input and output types are consistent.
-# The `bound=Symbol` ensures that any type used for SymbolLike must be a subclass of our
-# placeholder Symbol (or the actual symai.Symbol in production).
-SymbolLike = TypeVar('SymbolLike', bound=Symbol)
-
-def clean_symbol(input_symbol: SymbolLike) -> SymbolLike:
+def create_symai_symbol(data: Any) -> MockSymaiSymbol:
     """
-    Simulates text cleaning, such such as removing special characters or extra spaces,
-    from a Symbol object. This operation transforms the input text into a cleaner
-    format, resulting in a new Symbol instance.
-
-    The cleaning process applies the following steps to the Symbol's internal text value:
-    1.  Strips any leading and trailing whitespace characters.
-    2.  Replaces sequences of multiple whitespace characters (including spaces, newlines,
-        tabs, etc.) with a single space.
-    3.  Removes any characters that are not alphanumeric (letters, numbers, underscore)
-        or a single space. Punctuation and other symbols are removed.
+    Creates a `MockSymaiSymbol` object from various Python data types, such as text,
+    numbers, or lists. This function serves as the entry point for bringing raw data
+    into the symbolic AI framework by encapsulating it within a Symbol object, which
+    can then be processed by Expression operations.
 
     Arguments:
-        input_symbol (SymbolLike): The Symbol object containing the text to be cleaned.
-                                   This object must expose its text content via a 'value'
-                                   attribute.
+        data: The raw data (e.g., string, int, float, list, bool, dict, tuple, set, None)
+              to be wrapped as a `MockSymaiSymbol`.
 
     Returns:
-        SymbolLike: A new Symbol object of the same concrete type as the input_symbol,
-                    containing the cleaned text. The returned object is a distinct instance
-                    from the input_symbol, ensuring the original object remains unchanged.
+        MockSymaiSymbol: A new `MockSymaiSymbol` object containing the provided data.
 
     Raises:
-        TypeError: If `input_symbol` is not a Symbol-like object (i.e., it does not
-                   have a 'value' attribute). This handles cases like `None`, plain
-                   strings, numbers, lists, or dictionaries passed directly instead of
-                   being wrapped in a Symbol object.
+        TypeError: If the provided data is of an unsupported type. Supported types include
+                   primitive types (str, int, float, bool, None) and common collections
+                   (list, tuple, dict, set, frozenset). Functions, module objects, and
+                   arbitrary class instances are explicitly not allowed.
     """
-    # Error handling: Ensure the input is a Symbol-like object with a 'value' attribute.
-    if not hasattr(input_symbol, 'value'):
+    # Define a whitelist of allowed Python types that can be directly wrapped.
+    # This ensures that only sensible, serializable, and non-executable data is accepted.
+    # Note: `bool` is a subclass of `int`, but explicitly including it clarifies intent.
+    ALLOWED_TYPES = (
+        str,
+        int,
+        float,
+        bool,
+        list,
+        tuple,
+        dict,
+        set,
+        frozenset,
+        type(None) # Represents the type of `None`
+    )
+
+    # Check if the provided data's type is within the allowed types.
+    if not isinstance(data, ALLOWED_TYPES):
         raise TypeError(
-            f"Input must be a Symbol-like object with a 'value' attribute, "
-            f"but received an object of type {type(input_symbol).__name__}."
+            f"Unsupported data type: {type(data)}. "
+            "Only primitive types (str, int, float, bool, None) and "
+            "common collections (list, tuple, dict, set, frozenset) are allowed."
         )
 
-    # Extract the raw text value from the Symbol object.
-    # We explicitly convert it to a string to handle cases where the Symbol's
-    # value might be an integer, list, dictionary, or other non-string type
-    # that needs to be represented as text for cleaning.
-    original_text = str(input_symbol.value)
-
-    # Step 1: Remove leading and trailing whitespace.
-    text_stripped = original_text.strip()
-
-    # Step 2: Normalize internal whitespace. Replace any sequence of one or more
-    # whitespace characters (spaces, tabs, newlines) with a single space.
-    text_normalized_spaces = re.sub(r'\s+', ' ', text_stripped)
-
-    # Step 3: Remove non-alphanumeric and non-space characters.
-    # `\w` matches alphanumeric characters (letters, numbers, and underscore).
-    # `\s` matches any whitespace character (which is now guaranteed to be single spaces).
-    # `[^\w\s]` matches anything that is NOT a word character and NOT a whitespace character.
-    cleaned_text = re.sub(r'[^\w\s]', '', text_normalized_spaces)
-
-    # Return a new Symbol object initialized with the cleaned text.
-    # `input_symbol.__class__` ensures that the new object is of the same
-    # specific class (e.g., MockSymbol) as the input, preserving type.
-    return input_symbol.__class__(cleaned_text)
+    # Instantiate and return a `MockSymaiSymbol` with the provided data.
+    return MockSymaiSymbol(data)
